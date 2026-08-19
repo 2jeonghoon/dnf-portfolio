@@ -2,6 +2,8 @@
 
 네오플 [던전앤파이터] 서버 프로그래머 직무에 맞춰 C++ 네트워크, 비동기 처리, 데이터베이스 연동 역량을 보여주기 위한 작은 게임 서버 예제입니다.
 
+GitHub: https://github.com/2jeonghoon/dnf-portfolio
+
 ## What It Shows
 
 - `io_uring` 기반 TCP accept/recv/send 이벤트 루프
