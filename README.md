@@ -10,6 +10,7 @@ GitHub: https://github.com/2jeonghoon/dnf-portfolio
 - fd 재사용으로 인한 stale completion 오동작을 막는 session generation 검증
 - sector grid 기반 interest management와 주변 플레이어 동기화
 - 이동/공격 액션을 주변 sector에만 broadcast하는 MMORPG식 월드 이벤트
+- 월드 입장/퇴장(ENTER, QUIT/disconnect) 시점에 캐릭터 좌표를 DB worker pool로 비동기 저장 (MOVE 자체는 여전히 DB를 거치지 않음)
 - MySQL C API 기반 prepared statement, connection pool, transaction 처리
 - DB blocking 호출을 event loop에서 분리하는 worker pool + `eventfd` completion bridge
 - 계정, 캐릭터, 인벤토리 슬롯 저장/조회로 구성한 게임 서버 데이터 모델
@@ -30,6 +31,12 @@ mysql -u root -p < db/schema.sql
 ```
 
 기본 DB 이름은 `dungeon_portfolio`입니다. 실행 시 환경변수로 접속 정보를 바꿀 수 있습니다.
+
+`characters` 테이블에 좌표 컬럼(`x`, `y`)이 있습니다. `schema.sql`은 `CREATE TABLE IF NOT EXISTS`라 이미 만들어둔 DB에는 컬럼이 추가되지 않으니, 기존 DB를 쓰고 있다면 아래 마이그레이션을 한 번 실행하세요.
+
+```sql
+ALTER TABLE characters ADD COLUMN x INT NOT NULL DEFAULT 0, ADD COLUMN y INT NOT NULL DEFAULT 0;
+```
 
 ```bash
 MYSQL_HOST=127.0.0.1 \

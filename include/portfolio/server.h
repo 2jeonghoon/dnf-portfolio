@@ -56,6 +56,8 @@ class IoUringGameServer {
   void queue_response(int fd, std::uint64_t generation, std::string line);
   void deliver_world_events(const std::vector<WorldEvent>& events);
   void handle_client_line(Session& session, const std::string& line);
+  void submit_position_save(int fd, std::uint64_t generation, std::string account,
+                            std::string character, int x, int y);
   void close_session(int fd);
   void maybe_close_after_flush(int fd);
   bool session_matches(int fd, std::uint64_t generation) const;

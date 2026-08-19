@@ -153,13 +153,17 @@ std::vector<WorldEvent> SectorWorld::attack(SessionRef ref, std::string skill,
   return events;
 }
 
-std::vector<WorldEvent> SectorWorld::leave(SessionRef ref) {
+std::vector<WorldEvent> SectorWorld::leave(SessionRef ref, PlayerSnapshot* snapshot_out) {
   auto player_it = players_.find(ref);
   if (player_it == players_.end()) {
     return {};
   }
 
   const PlayerState player = player_it->second;
+  if (snapshot_out != nullptr) {
+    *snapshot_out = {player.account, player.character, player.x, player.y};
+  }
+
   const auto watchers = watchers_around(player.sector);
   erase_from_sector(ref, player.sector);
   players_.erase(player_it);

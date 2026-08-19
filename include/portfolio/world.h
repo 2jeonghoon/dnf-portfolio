@@ -41,6 +41,13 @@ struct WorldEvent {
   std::string line;
 };
 
+struct PlayerSnapshot {
+  std::string account;
+  std::string character;
+  int x{0};
+  int y{0};
+};
+
 class SectorWorld {
  public:
   explicit SectorWorld(int sector_size = 100, int view_radius = 1);
@@ -49,7 +56,7 @@ class SectorWorld {
                                 int y);
   std::vector<WorldEvent> move(SessionRef ref, int x, int y);
   std::vector<WorldEvent> attack(SessionRef ref, std::string skill, std::string target);
-  std::vector<WorldEvent> leave(SessionRef ref);
+  std::vector<WorldEvent> leave(SessionRef ref, PlayerSnapshot* snapshot_out = nullptr);
 
  private:
   struct PlayerState {

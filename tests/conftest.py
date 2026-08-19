@@ -125,3 +125,39 @@ def client(make_client) -> ProtocolClient:
 @pytest.fixture
 def unique_account() -> str:
     return f"acct_{uuid.uuid4().hex[:12]}"
+
+
+@pytest.fixture
+def db(server):
+    # autocommit=True so each poll sees the latest committed data; otherwise
+    # REPEATABLE READ would pin this connection to the snapshot as of its
+    # first query, and later commits from the server's DB worker threads
+    # would never become visible here.
+    connection = pymysql.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        autocommit=True,
+    )
+    try:
+        yield connection
+    finally:
+        connection.close()
+
+
+def poll_until(predicate, timeout: float = 2.0, interval: float = 0.05):
+    """Retry `predicate` (returns a truthy result or None) until it succeeds or times out.
+
+    Used to observe effects of fire-and-forget background DB jobs, which the
+    protocol gives no client-visible acknowledgement for.
+    """
+    deadline = time.monotonic() + timeout
+    last_result = None
+    while time.monotonic() < deadline:
+        last_result = predicate()
+        if last_result:
+            return last_result
+        time.sleep(interval)
+    raise AssertionError(f"condition not met within {timeout}s, last result: {last_result!r}")

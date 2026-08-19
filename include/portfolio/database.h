@@ -19,6 +19,7 @@ enum class DbOperation {
   kLoadCharacters,
   kSaveInventoryItem,
   kLoadInventory,
+  kSavePosition,
 };
 
 struct DbJob {
@@ -28,6 +29,9 @@ struct DbJob {
   DbOperation operation{DbOperation::kLoginPlayer};
   std::string command_name;
   std::vector<std::string> args;
+  // Background jobs (e.g. position autosave) run without a client waiting on
+  // a PENDING/DONE reply; the server skips queuing a response for these.
+  bool notify_client{true};
 };
 
 struct DbCompletion {
@@ -36,6 +40,7 @@ struct DbCompletion {
   std::uint64_t request_id{0};
   bool ok{false};
   std::string line;
+  bool notify_client{true};
 };
 
 class MysqlLibrary {

@@ -264,6 +264,13 @@ void IoUringGameServer::run() {
 
           DbCompletion completion;
           while (database_.pop_completion(completion)) {
+            if (!completion.notify_client) {
+              if (!completion.ok) {
+                std::cerr << "background db job failed: " << completion.line << std::endl;
+              }
+              continue;
+            }
+
             if (!session_matches(completion.client_fd, completion.client_generation)) {
               continue;
             }
@@ -419,7 +426,12 @@ void IoUringGameServer::handle_client_line(Session& session, const std::string& 
   }
 
   if (parsed.request.type == CommandType::kQuit) {
-    deliver_world_events(world_.leave({session.fd, session.generation}));
+    PlayerSnapshot snapshot;
+    deliver_world_events(world_.leave({session.fd, session.generation}, &snapshot));
+    if (!snapshot.account.empty()) {
+      submit_position_save(session.fd, session.generation, snapshot.account, snapshot.character,
+                           snapshot.x, snapshot.y);
+    }
     queue_response(session.fd, session.generation, "BYE");
     session.close_after_flush = true;
     return;
@@ -428,11 +440,15 @@ void IoUringGameServer::handle_client_line(Session& session, const std::string& 
   if (is_world_command(parsed.request.type)) {
     const SessionRef ref{session.fd, session.generation};
     switch (parsed.request.type) {
-      case CommandType::kEnterWorld:
-        deliver_world_events(world_.enter(ref, parsed.request.args.at(0), parsed.request.args.at(1),
-                                          std::stoi(parsed.request.args.at(2)),
-                                          std::stoi(parsed.request.args.at(3))));
+      case CommandType::kEnterWorld: {
+        const std::string& account = parsed.request.args.at(0);
+        const std::string& character = parsed.request.args.at(1);
+        const int x = std::stoi(parsed.request.args.at(2));
+        const int y = std::stoi(parsed.request.args.at(3));
+        deliver_world_events(world_.enter(ref, account, character, x, y));
+        submit_position_save(session.fd, session.generation, account, character, x, y);
         return;
+      }
       case CommandType::kMove:
         deliver_world_events(world_.move(ref, std::stoi(parsed.request.args.at(0)),
                                          std::stoi(parsed.request.args.at(1))));
@@ -472,6 +488,19 @@ void IoUringGameServer::handle_client_line(Session& session, const std::string& 
   database_.submit(std::move(job));
 }
 
+void IoUringGameServer::submit_position_save(int fd, std::uint64_t generation, std::string account,
+                                             std::string character, int x, int y) {
+  DbJob job;
+  job.client_fd = fd;
+  job.client_generation = generation;
+  job.request_id = next_request_id_++;
+  job.operation = DbOperation::kSavePosition;
+  job.command_name = "SAVE_POSITION";
+  job.notify_client = false;
+  job.args = {std::move(account), std::move(character), std::to_string(x), std::to_string(y)};
+  database_.submit(std::move(job));
+}
+
 void IoUringGameServer::close_session(int fd) {
   auto session_it = sessions_.find(fd);
   if (session_it == sessions_.end()) {
@@ -479,7 +508,13 @@ void IoUringGameServer::close_session(int fd) {
   }
 
   if (!stopping_) {
-    deliver_world_events(world_.leave({session_it->second.fd, session_it->second.generation}));
+    PlayerSnapshot snapshot;
+    deliver_world_events(
+        world_.leave({session_it->second.fd, session_it->second.generation}, &snapshot));
+    if (!snapshot.account.empty()) {
+      submit_position_save(session_it->second.fd, session_it->second.generation, snapshot.account,
+                           snapshot.character, snapshot.x, snapshot.y);
+    }
   }
   close(session_it->second.fd);
   sessions_.erase(session_it);

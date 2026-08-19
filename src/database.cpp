@@ -28,6 +28,7 @@ struct MysqlParam {
     kString,
     kUInt32,
     kUInt64,
+    kInt32,
   };
 
   static MysqlParam string(std::string value) {
@@ -52,10 +53,18 @@ struct MysqlParam {
     return param;
   }
 
+  static MysqlParam int32(int value) {
+    MysqlParam param;
+    param.type = Type::kInt32;
+    param.i32_value = value;
+    return param;
+  }
+
   Type type{Type::kString};
   std::string string_value;
   unsigned int u32_value{0};
   unsigned long long u64_value{0};
+  int i32_value{0};
   unsigned long length{0};
 };
 
@@ -105,6 +114,11 @@ class MysqlStatement {
           bind.buffer_type = MYSQL_TYPE_LONG;
           bind.buffer = &param.u32_value;
           bind.is_unsigned = true;
+          break;
+        case MysqlParam::Type::kInt32:
+          bind.buffer_type = MYSQL_TYPE_LONG;
+          bind.buffer = &param.i32_value;
+          bind.is_unsigned = false;
           break;
         case MysqlParam::Type::kUInt64:
           bind.buffer_type = MYSQL_TYPE_LONGLONG;
@@ -337,6 +351,33 @@ class MysqlConnection {
     return completion;
   }
 
+  DbCompletion save_position(const DbJob& job) {
+    const std::string& account = job.args.at(0);
+    const std::string& character = job.args.at(1);
+    const int x = std::stoi(job.args.at(2));
+    const int y = std::stoi(job.args.at(3));
+
+    begin();
+    try {
+      const unsigned long long player_id = select_player_id_for_update(account);
+      execute_prepared(
+          "INSERT INTO characters(player_id, name, level, gold, x, y) VALUES (?, ?, 1, 0, ?, ?) "
+          "ON DUPLICATE KEY UPDATE x = VALUES(x), y = VALUES(y)",
+          {MysqlParam::uint64(player_id), MysqlParam::string(character), MysqlParam::int32(x),
+           MysqlParam::int32(y)});
+      commit();
+    } catch (...) {
+      rollback_noexcept();
+      throw;
+    }
+
+    DbCompletion completion = base_completion(job);
+    completion.ok = true;
+    completion.line = "OK SAVE_POSITION account=" + account + " character=" + character +
+                      " x=" + std::to_string(x) + " y=" + std::to_string(y);
+    return completion;
+  }
+
   DbCompletion load_characters(const DbJob& job) {
     const std::string& account = job.args.at(0);
     select_player_id(account);
@@ -545,6 +586,7 @@ class MysqlConnection {
     completion.client_fd = job.client_fd;
     completion.client_generation = job.client_generation;
     completion.request_id = job.request_id;
+    completion.notify_client = job.notify_client;
     return completion;
   }
 
@@ -558,6 +600,7 @@ DbCompletion error_completion(const DbJob& job, const std::exception& error) {
   completion.request_id = job.request_id;
   completion.ok = false;
   completion.line = "ERR " + job.command_name + " " + error.what();
+  completion.notify_client = job.notify_client;
   return completion;
 }
 
@@ -575,6 +618,8 @@ DbCompletion execute_job(MysqlConnection& connection, const DbJob& job) {
       return connection.save_inventory_item(job);
     case DbOperation::kLoadInventory:
       return connection.load_inventory(job);
+    case DbOperation::kSavePosition:
+      return connection.save_position(job);
   }
 
   throw std::runtime_error("unsupported database operation");
