@@ -1,0 +1,47 @@
+CREATE DATABASE IF NOT EXISTS dungeon_portfolio
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_unicode_ci;
+
+USE dungeon_portfolio;
+
+CREATE TABLE IF NOT EXISTS players (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  account VARCHAR(64) NOT NULL,
+  display_name VARCHAR(64) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_login_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_players_account (account)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS characters (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  player_id BIGINT UNSIGNED NOT NULL,
+  name VARCHAR(64) NOT NULL,
+  level INT UNSIGNED NOT NULL,
+  gold BIGINT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_characters_player_name (player_id, name),
+  KEY ix_characters_player_updated (player_id, updated_at),
+  CONSTRAINT fk_characters_player
+    FOREIGN KEY (player_id) REFERENCES players(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS inventory_items (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  player_id BIGINT UNSIGNED NOT NULL,
+  slot INT UNSIGNED NOT NULL,
+  item_id BIGINT UNSIGNED NOT NULL,
+  stack_count INT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_inventory_player_slot (player_id, slot),
+  KEY ix_inventory_player_updated (player_id, updated_at),
+  CONSTRAINT fk_inventory_player
+    FOREIGN KEY (player_id) REFERENCES players(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB;
