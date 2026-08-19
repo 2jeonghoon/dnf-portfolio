@@ -65,6 +65,20 @@ def test_quit_persists_final_position(client, db, unique_account):
     assert (x, y) == (99, 99)
 
 
+def test_load_reflects_persisted_position(client, db, unique_account):
+    client.request(f"REGISTER {unique_account} BladeMaster")
+    client.send(f"ENTER {unique_account} main 12 34")
+    client.read_line()
+
+    # Position autosave is async and unacknowledged, so wait for it to land
+    # before asserting on LOAD, which reads it back through the protocol.
+    poll_until(lambda: _character_position(db, unique_account, "main"))
+
+    _, load_done = client.request(f"LOAD {unique_account}")
+    assert f"OK LOAD account={unique_account} character_count=1" in load_done
+    assert "characters=main:1:0:12:34" in load_done
+
+
 def test_disconnect_persists_final_position(make_client, db, unique_account):
     client = make_client()
     client.request(f"REGISTER {unique_account} BladeMaster")

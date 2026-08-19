@@ -384,7 +384,7 @@ class MysqlConnection {
 
     MysqlStatement statement(
         connection_,
-        "SELECT c.name, c.level, c.gold "
+        "SELECT c.name, c.level, c.gold, c.x, c.y "
         "FROM players p JOIN characters c ON c.player_id = p.id "
         "WHERE p.account = ? ORDER BY c.updated_at DESC, c.id DESC");
     auto params = std::vector<MysqlParam>{MysqlParam::string(account)};
@@ -395,14 +395,20 @@ class MysqlConnection {
     unsigned long name_length = 0;
     unsigned int level = 0;
     unsigned long long gold = 0;
+    int x = 0;
+    int y = 0;
     bool name_null = false;
     bool level_null = false;
     bool gold_null = false;
+    bool x_null = false;
+    bool y_null = false;
     bool name_error = false;
     bool level_error = false;
     bool gold_error = false;
+    bool x_error = false;
+    bool y_error = false;
 
-    MYSQL_BIND results[3]{};
+    MYSQL_BIND results[5]{};
     results[0].buffer_type = MYSQL_TYPE_STRING;
     results[0].buffer = name;
     results[0].buffer_length = sizeof(name);
@@ -419,6 +425,16 @@ class MysqlConnection {
     results[2].is_unsigned = true;
     results[2].is_null = &gold_null;
     results[2].error = &gold_error;
+    results[3].buffer_type = MYSQL_TYPE_LONG;
+    results[3].buffer = &x;
+    results[3].is_unsigned = false;
+    results[3].is_null = &x_null;
+    results[3].error = &x_error;
+    results[4].buffer_type = MYSQL_TYPE_LONG;
+    results[4].buffer = &y;
+    results[4].is_unsigned = false;
+    results[4].is_null = &y_null;
+    results[4].error = &y_error;
 
     if (mysql_stmt_bind_result(statement.get(), results) != 0) {
       throw std::runtime_error(stmt_error_message(statement.get(), "bind result failed"));
@@ -436,11 +452,13 @@ class MysqlConnection {
       if (fetch_status != 0 && fetch_status != MYSQL_DATA_TRUNCATED) {
         throw std::runtime_error(stmt_error_message(statement.get(), "fetch character failed"));
       }
-      if (name_null || level_null || gold_null || name_error || level_error || gold_error) {
+      if (name_null || level_null || gold_null || x_null || y_null || name_error || level_error ||
+          gold_error || x_error || y_error) {
         throw std::runtime_error("invalid character row for account: " + account);
       }
       std::ostringstream row;
-      row << std::string(name, name + name_length) << ":" << level << ":" << gold;
+      row << std::string(name, name + name_length) << ":" << level << ":" << gold << ":" << x << ":"
+          << y;
       characters.push_back(row.str());
     }
 
